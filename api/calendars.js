@@ -1,4 +1,6 @@
 const cheerio = require("cheerio");
+const fs = require('fs');
+const path = require('path');
 
 const UEFS_BASE = "http://www.prograd.uefs.br/";
 const UEFS_CALENDARS_PATH = "modules/conteudo/conteudo.php?conteudo=6";
@@ -15,7 +17,23 @@ module.exports = async (req, res) => {
     },
   ];
 
-  console.log("DEBUG busca");
+
+  try {
+    const candidates = [
+      path.join(process.cwd(), 'client', 'public', 'calendars.json'),
+      path.join(process.cwd(), 'public', 'calendars.json'),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        const content = JSON.parse(fs.readFileSync(p, 'utf8'));
+        console.log('Servindo calendars.json local:', p);
+        res.status(200).json(content);
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('Falha ao ler calendars.json local:', e && e.message);
+  }
 
   try {
     const targetUrl = new URL(UEFS_CALENDARS_PATH, UEFS_BASE).toString();

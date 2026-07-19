@@ -1,0 +1,43 @@
+name: Atualizar Calendário
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run scraper
+        run: npm run update-calendars
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git status --porcelain | grep -q .; then
+            echo "changed=1" >> $GITHUB_OUTPUT
+          else
+            echo "changed=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push calendars.json
+        if: steps.check_changes.outputs.changed == '1'
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add client/public/calendars.json
+          git commit -m "[ACTION] update calendars" || echo "no changes to commit"
+          git push
