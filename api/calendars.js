@@ -6,6 +6,7 @@ const UEFS_CALENDARS_PATH = "modules/conteudo/conteudo.php?conteudo=6";
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   const fallback = [
     {
@@ -13,6 +14,8 @@ module.exports = async (req, res) => {
       url: "http://www.prograd.uefs.br/arquivos/File/Calensario20262.pdf",
     },
   ];
+
+  console.log("DEBUG busca");
 
   try {
     const targetUrl = new URL(UEFS_CALENDARS_PATH, UEFS_BASE).toString();
@@ -65,6 +68,7 @@ module.exports = async (req, res) => {
 
     res.status(200).json({ calendars });
   } catch (err) {
+    console.log("DEBUG: Erro capturado no catch:", err);
     res
       .status(200)
       .json({
