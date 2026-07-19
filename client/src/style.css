@@ -1,0 +1,131 @@
+:root {
+  --bg: #0d1117;
+  --card: #161b22;
+  --accent: #e10600;
+  --text: #f0f0f0;
+  --muted: #9aa4b2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+header {
+  padding: 32px 20px 16px;
+  text-align: center;
+}
+
+header h1 {
+  margin: 0 0 8px;
+  font-size: 1.8rem;
+}
+
+header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+section h2 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+#calendar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.calendar-item {
+  background: var(--card);
+  border: 1px solid #2a2f3a;
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.calendar-item:hover {
+  background: #1b2430;
+  transform: translateX(3px);
+}
+
+.arrow {
+  color: var(--accent);
+  font-size: 1.2rem;
+}
+
+#status-section,
+#result-section {
+  background: var(--card);
+  border: 1px solid #2a2f3a;
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+#status-text,
+#result-text {
+  color: #c9d1d9;
+  margin: 0;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 24px;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 700;
+  margin-top: 16px;
+}
+
+button#back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid #2a2f3a;
+  border-radius: 999px;
+  padding: 12px 24px;
+  cursor: pointer;
+}
+
+footer {
+  text-align: center;
+  margin-top: 24px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 0 20px 24px;
+}
