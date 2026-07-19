@@ -19,11 +19,12 @@ module.exports = async (req, res) => {
     const resp = await fetch(url, {
       headers: {
         Accept: "text/html",
-        "User-Agent": "UEFS-Calendar-Scraper/1.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
       },
       timeout: 10000,
     });
     if (!resp.ok) {
+      console.error(`Status: ${resp.status}, StatusText: ${resp.statusText}`);
       res
         .status(200)
         .json({
