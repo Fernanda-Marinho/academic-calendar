@@ -1,97 +1,42 @@
-const cheerio = require("cheerio");
-const fs = require('fs');
-const path = require('path');
+require('dotenv').config();
+const { createClient } = require('@supabase/supabase-js');
 
-const UEFS_BASE = "http://www.prograd.uefs.br/";
-const UEFS_CALENDARS_PATH = "modules/conteudo/conteudo.php?conteudo=6";
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
-  const fallback = [
-    {
-      title: "Calendário Acadêmico UEFS 2026.2",
-      url: "http://www.prograd.uefs.br/arquivos/File/Calensario20262.pdf",
-    },
-  ];
+  const { data, error } = await supabase
+    .from('calendars')
+    .select('id, source, source_url, data, updated_at')
+    .eq('id', 'uefs')
+    .single();
 
-
-  try {
-    const candidates = [
-      path.join(process.cwd(), 'client', 'public', 'calendars.json'),
-      path.join(process.cwd(), 'public', 'calendars.json'),
-    ];
-    for (const p of candidates) {
-      if (fs.existsSync(p)) {
-        const content = JSON.parse(fs.readFileSync(p, 'utf8'));
-        console.log('Servindo calendars.json local:', p);
-        res.status(200).json(content);
-        return;
-      }
-    }
-  } catch (e) {
-    console.warn('Falha ao ler calendars.json local:', e && e.message);
+  if (error) {
+    console.error('Supabase query failed:', error.message);
+    return res.status(500).json({
+      calendars: [],
+      error: 'Falha ao obter dados do Supabase',
+      details: error.message,
+    });
   }
 
-  try {
-    const targetUrl = new URL(UEFS_CALENDARS_PATH, UEFS_BASE).toString();
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('http://www.prograd.uefs.br/modules/conteudo/conteudo.php?conteudo=6')}`;
-    const resp = await fetch(proxyUrl, {
-      headers: {
-        Accept: "text/html",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-      },
-      timeout: 10000,
+  if (!data) {
+    return res.status(200).json({
+      calendars: [],
+      warning: 'Nenhum calendário encontrado. Aguardando coleta via automação.',
     });
-    if (!resp.ok) {
-      console.error(`Status: ${resp.status}, StatusText: ${resp.statusText}`);
-      res
-        .status(200)
-        .json({
-          calendars: fallback,
-          warning: `Fallback: retorno ${resp.status}`,
-        });
-      return;
-    }
-
-    const html = await resp.text();
-    const $ = cheerio.load(html);
-    const urls = new Map();
-
-    $("a[href$='.pdf']").each((i, el) => {
-      const href = $(el).attr("href");
-      if (!href) return;
-      try {
-        const abs = new URL(href, UEFS_BASE).toString();
-        const title = $(el).text().trim() || abs.split("/").pop();
-        urls.set(abs, title);
-      } catch (e) {}
-    });
-
-    const calendars = Array.from(urls.entries()).map(([url, title]) => ({
-      title,
-      url,
-    }));
-    if (calendars.length === 0) {
-      res
-        .status(200)
-        .json({
-          calendars: fallback,
-          warning: "Nenhum PDF detectado; usando fallback.",
-        });
-      return;
-    }
-
-    res.status(200).json({ calendars });
-  } catch (err) {
-    console.log("DEBUG: Erro capturado no catch:", err);
-    res
-      .status(200)
-      .json({
-        calendars: fallback,
-        warning: `Erro no scraping: ${String(err)}`,
-      });
   }
+
+  return res.status(200).json({
+    calendars: data.data,
+    source: data.source,
+    source_url: data.source_url,
+    updated_at: data.updated_at,
+  });
 };

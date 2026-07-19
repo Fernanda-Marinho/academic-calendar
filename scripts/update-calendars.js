@@ -1,81 +1,99 @@
-const fs = require('fs');
-const path = require('path');
-const cheerio = require('cheerio');
+require("dotenv").config();
+const { fetch } = require("undici");
+const cheerio = require("cheerio");
+const { createClient } = require("@supabase/supabase-js");
 
-async function fetchHtml(url) {
-  const resp = await fetch(url, {
-    headers: {
-      Accept: 'text/html',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-    },
-    timeout: 20000,
-  });
-  if (!resp.ok) throw new Error(`Status ${resp.status}`);
-  return resp.text();
-}
+const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const TARGET_URL =
+  "http://www.prograd.uefs.br/modules/conteudo/conteudo.php?conteudo=6";
+const SCRAPERAPI_URL = `http://api.scraperapi.com?api_key=${encodeURIComponent(SCRAPERAPI_KEY)}&url=${encodeURIComponent(TARGET_URL)}&country_code=br&render=false`;
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  global: { fetch },
+});
 
 function extractPdfLinks(html) {
-  const UEFS_BASE = 'http://www.prograd.uefs.br/';
+  const UEFS_BASE = "http://www.prograd.uefs.br/";
   const $ = cheerio.load(html);
   const urls = new Map();
+
   $("a[href$='.pdf']").each((i, el) => {
-    const href = $(el).attr('href');
+    const href = $(el).attr("href");
     if (!href) return;
     try {
       const abs = new URL(href, UEFS_BASE).toString();
-      const title = $(el).text().trim() || abs.split('/').pop();
+      const title = $(el).text().trim() || abs.split("/").pop();
       urls.set(abs, title);
-    } catch (e) {}
+    } catch (err) {}
   });
+
   return Array.from(urls.entries()).map(([url, title]) => ({ title, url }));
 }
 
-async function update() {
-  console.log('Iniciando scraping da UEFS...');
-  try {
-    const url = 'http://www.prograd.uefs.br/modules/conteudo/conteudo.php?conteudo=6';
-    const html = await fetchHtml(url);
-    const calendars = extractPdfLinks(html);
+async function fetchHtmlViaProxy() {
+  console.log("Requesting via ScraperAPI URL:", SCRAPERAPI_URL);
+  const res = await fetch(SCRAPERAPI_URL, {
+    method: "GET",
+    headers: {
+      Accept: "text/html",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    },
+    keepalive: false,
+    timeout: 30000,
+  });
 
-    const out = {
-      calendars: calendars.length ? calendars : [
-        {
-          title: 'Calendário Acadêmico UEFS (fallback)',
-          url: 'http://www.prograd.uefs.br/arquivos/File/Calensario20262.pdf',
-        },
-      ],
-      updated_at: new Date().toISOString(),
-      source: 'github-actions-scraper',
-    };
+  console.log("ScraperAPI response status:", res.status);
+  console.log("ScraperAPI x-cache:", res.headers.get("x-cache") || "none");
 
-    const outDir = path.join(process.cwd(), 'client', 'public');
-    try { fs.mkdirSync(outDir, { recursive: true }); } catch (e) {}
-    const outPath = path.join(outDir, 'calendars.json');
-
-    if (fs.existsSync(outPath)) {
-      try {
-        const prev = JSON.parse(fs.readFileSync(outPath, 'utf8'));
-        const prevLen = Array.isArray(prev.calendars) ? prev.calendars.length : 0;
-        const newLen = Array.isArray(out.calendars) ? out.calendars.length : 0;
-        if (prevLen === newLen) {
-          process.exit(0);
-        }
-      } catch (e) {
-        console.warn('Falha ao ler/parsear arquivo anterior, irá sobrescrever:', e && e.message);
-      }
-    }
-
-    fs.writeFileSync(outPath, JSON.stringify(out, null, 2), 'utf8');
-    console.log('Arquivo gerado:', outPath);
-    process.exit(0);
-  } catch (e) {
-    console.error('Error name:', e.name);
-    console.error('message:', e.message);
-    console.error('stack:', e.stack);
-    console.error('e:', e);
-    //process.exit(2);
-    process.exit(1);
+  if (!res.ok) {
+    throw new Error(`ScraperAPI returned status ${res.status}`);
   }
+
+  const html = await res.text();
+  console.log("ScraperAPI response length:", html.length);
+  return html;
 }
 
-update();
+async function upsertSupabase(calendars) {
+  const payload = {
+    id: "uefs",
+    source: "uefs",
+    source_url: TARGET_URL,
+    data: calendars,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from("calendars")
+    .upsert(payload, { onConflict: "id" });
+  if (error) {
+    throw error;
+  }
+
+  return payload;
+}
+
+async function run() {
+  console.log("Starting UEFS scraping via ScraperAPI...");
+
+  const html = await fetchHtmlViaProxy();
+  const calendars = extractPdfLinks(html);
+
+  if (!calendars.length) {
+    throw new Error("No calendar PDF links extracted from UEFS page.");
+  }
+
+  console.log(`Found ${calendars.length} calendar entries.`);
+  await upsertSupabase(calendars);
+  console.log("Supabase upsert completed for calendars row id=uefs.");
+}
+
+run().catch((error) => {
+  console.error("Scraping/upsert failed:", error.message);
+  console.error(error);
+  process.exit(1);
+});
