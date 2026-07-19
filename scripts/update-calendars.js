@@ -69,8 +69,12 @@ async function update() {
     console.log('Arquivo gerado:', outPath);
     process.exit(0);
   } catch (e) {
-    console.error('Erro ao gerar arquivo:', e);
-    process.exit(2);
+    console.error('Error name:', e.name);
+    console.error('message:', e.message);
+    console.error('stack:', e.stack);
+    console.error('e:', e);
+    //process.exit(2);
+    process.exit(1);
   }
 }
 
