@@ -15,8 +15,9 @@ module.exports = async (req, res) => {
   ];
 
   try {
-    const url = new URL(UEFS_CALENDARS_PATH, UEFS_BASE).toString();
-    const resp = await fetch(url, {
+    const targetUrl = new URL(UEFS_CALENDARS_PATH, UEFS_BASE).toString();
+    const proxyUrl = `https://api.corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
+    const resp = await fetch(proxyUrl, {
       headers: {
         Accept: "text/html",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
