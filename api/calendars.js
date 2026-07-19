@@ -16,7 +16,7 @@ module.exports = async (req, res) => {
 
   try {
     const targetUrl = new URL(UEFS_CALENDARS_PATH, UEFS_BASE).toString();
-    const proxyUrl = `https://api.corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('http://www.prograd.uefs.br/modules/conteudo/conteudo.php?conteudo=6')}`;
     const resp = await fetch(proxyUrl, {
       headers: {
         Accept: "text/html",
