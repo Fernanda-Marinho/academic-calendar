@@ -237,13 +237,22 @@ module.exports = async (req, res) => {
       res.status(400).json({ error: "Parâmetro 'url' é obrigatório" });
       return;
     }
+    const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY;
+    let fetchUrl = url;
+    if (SCRAPERAPI_KEY) {
+      fetchUrl = `http://api.scraperapi.com?api_key=${encodeURIComponent(
+        SCRAPERAPI_KEY,
+      )}&url=${encodeURIComponent(url)}&country_code=br&render=false`;
+      console.log('Using ScraperAPI proxy for URL:', url);
+    }
 
-    const pdfResponse = await fetch(url, {
+    const pdfResponse = await fetch(fetchUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
         Accept: "application/pdf,*/*",
-        Referer: "http://www.prograd.uefs.br/",
+        ...(SCRAPERAPI_KEY ? {} : { Referer: "http://www.prograd.uefs.br/" }),
       },
+      timeout: 10000,
     });
     if (!pdfResponse.ok) {
       const bodySnippet = (await pdfResponse.text().catch(() => "")).slice(
