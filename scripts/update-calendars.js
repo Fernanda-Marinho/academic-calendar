@@ -2,6 +2,7 @@ require("dotenv").config();
 const { fetch } = require("undici");
 const cheerio = require("cheerio");
 const { createClient } = require("@supabase/supabase-js");
+const ws = require("ws");
 
 const normalizeEnv = (value) => {
   if (typeof value !== "string") return value;
@@ -27,6 +28,7 @@ const SCRAPERAPI_URL = `http://api.scraperapi.com?api_key=${encodeURIComponent(S
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   global: { fetch },
+  realtime: { transport: ws },
 });
 
 function extractPdfLinks(html) {
