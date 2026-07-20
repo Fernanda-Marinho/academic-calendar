@@ -3,9 +3,23 @@ const { fetch } = require("undici");
 const cheerio = require("cheerio");
 const { createClient } = require("@supabase/supabase-js");
 
-const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY;
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const normalizeEnv = (value) => {
+  if (typeof value !== "string") return value;
+  return value.trim().replace(/^['"]|['"]$/g, "");
+};
+
+const SCRAPERAPI_KEY = normalizeEnv(process.env.SCRAPERAPI_KEY);
+const SUPABASE_URL = normalizeEnv(process.env.SUPABASE_URL);
+const SUPABASE_SERVICE_ROLE_KEY = normalizeEnv(process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+const missing = [];
+if (!SCRAPERAPI_KEY) missing.push("SCRAPERAPI_KEY");
+if (!SUPABASE_URL) missing.push("SUPABASE_URL");
+if (!SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+if (missing.length) {
+  console.error("Missing required environment variables:", missing.join(", "));
+  process.exit(1);
+}
 
 const TARGET_URL =
   "http://www.prograd.uefs.br/modules/conteudo/conteudo.php?conteudo=6";

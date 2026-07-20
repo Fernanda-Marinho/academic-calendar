@@ -22,9 +22,8 @@ jobs:
         run: npm install
 
       - name: Run scraper and persist to Supabase
+        run: npm run update-calendars 
         env:
           SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           NODE_ENV: production
-        run: npm run update-calendars
