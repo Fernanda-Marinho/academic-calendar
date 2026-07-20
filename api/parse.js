@@ -24,10 +24,24 @@ function normalize(str) {
 }
 
 function parseCalendarText(text, fallbackYear) {
-  const rawLines = text
+  const cleanText = text.replace(/\$/g, "");
+
+  const rawLines = cleanText
     .split("\n")
     .map((l) => l.replace(/\s+/g, " ").trim())
     .filter(Boolean);
+
+  const danglingSepRe = /(?:\d{1,2}(?:\/\d{1,2})?\s*(?:a|ate|até|[\-–—]|e)\s*)$/i;
+  const mergedRawLines = [];
+
+  for (let i = 0; i < rawLines.length; i++) {
+    let line = rawLines[i];
+    while (danglingSepRe.test(line) && i + 1 < rawLines.length) {
+      i++;
+      line = `${line} ${rawLines[i]}`;
+    }
+    mergedRawLines.push(line);
+  }
 
   const events = [];
   let currentMonth = null;
@@ -35,28 +49,33 @@ function parseCalendarText(text, fallbackYear) {
 
   const ignoreLine = /^dias letivos/i;
 
-  // *MONTH/YYYY  or  MONTH/YYYY  or  MONTH YYYY
+  // *MONTH DE YYYY / MONTH/YYYY / MONTH YYYY
   const monthHeaderRe =
-    /^\*?(JANEIRO|FEVEREIRO|MARCO|MARÇO|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)\s*[\/\-]?\s*(\d{4})?/i;
+    /^\*?(JANEIRO|FEVEREIRO|MARCO|MARÇO|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)(?:\s*(?:de|\/|\-)?\s*(\d{4}))?/i;
+
+  const rangeSep = '(?:a|ate|até|[\-–—])';
 
   // dd/mm a dd/mm
   const crossMonthRangeRe =
-    /^(\d{1,2})\/(\d{1,2})\s*a\s*(\d{1,2})\/(\d{1,2})(?:\s+(.+))?$/i;
+    new RegExp('^(\\d{1,2})\\/(\\d{1,2})\\s*' + rangeSep + '\\s*(\\d{1,2})\\/(\\d{1,2})(?:\\s+(.+))?$', 'i');
 
   // dd a dd
-  const sameMonthRangeRe = /^(\d{1,2})\s*(?:a|-)\s*(\d{1,2})(?:\s+(.+))?$/i;
+  const sameMonthRangeRe =
+    new RegExp('^(\\d{1,2})\\s*' + rangeSep + '\\s*(\\d{1,2})(?:\\s+(.+))?$', 'i');
 
-  // dd e dd d, d e d
-  const dayListRe = /^(\d{1,2}(?:\s*,\s*\d{1,2})*\s*e\s*\d{1,2})\s+(.+)$/i;
+  // dd/mm
+  const singleDayWithMonthRe = /^(\d{1,2})\/(\d{1,2})\s+(.+)$/i;
+
+  // d, d e d
+  const dayListRe =
+    /^(\d{1,2}(?:\s*[,\/]\s*\d{1,2})*(?:\s*(?:e|,)\s*\d{1,2})+)(?:\s+(.+))?$/i;
 
   // dd
   const singleDayRe = /^(\d{1,2})\s+(.+)$/;
 
-  // dd, dd a dd, dd/mm a dd/mm and até dd/mm
   const dateOnlyLineRe =
-    /^(?:até\s*)?\d{1,2}(?:\/\d{1,2})?(?:\s*(?:a|e|até|-)\s*\d{1,2}(?:\/\d{1,2})?)*$/i;
+    new RegExp('^(?:até\\s*)?\\d{1,2}(?:\\/\\d{1,2})?(?:\\s*' + rangeSep + '\\s*\\d{1,2}(?:\\/\\d{1,2})?)*$', 'i');
 
-  //ignore header and end of page
   const footerDateLineRe = /^\d{1,2}\s+de\s+[A-ZÇÃÕ]+/i;
   const diasLetivosLineRe = /^dias letivos\b/i;
   const footerLineRe = /^Resolu[cç][aã]o\s+\d+.*SEI.*\/\s*pg\.\s*\d+/i;
@@ -65,10 +84,14 @@ function parseCalendarText(text, fallbackYear) {
     /\s*Resolu[cç][aã]o\s+\d+.*SEI.*\/\s*pg\.\s*\d+\s*$/i;
   const atAnywhereRe = /(?:^|\s)até\s*(\d{1,2})(?:\/(\d{1,2}))?(?:\s+(.+))?/i;
 
+  const aDefinirRe = /a\s*definir|a\s*indefinido|a-definir/i;
+
   function cleanDescription(desc) {
+    if (!desc) return "";
     return desc
       .replace(removeDiasLetivosSuffixRe, "")
       .replace(removeFooterSuffixRe, "")
+      .replace(/^[\s\|\-–—:\.]+/g, "")
       .trim();
   }
 
@@ -80,14 +103,16 @@ function parseCalendarText(text, fallbackYear) {
     return (
       crossMonthRangeRe.test(line) ||
       sameMonthRangeRe.test(line) ||
+      singleDayWithMonthRe.test(line) ||
       dayListRe.test(line) ||
-      singleDayRe.test(line)
+      singleDayRe.test(line) ||
+      dateOnlyLineRe.test(line)
     );
   }
 
   const lines = [];
-  for (let i = 0; i < rawLines.length; i += 1) {
-    const line = rawLines[i];
+  for (let i = 0; i < mergedRawLines.length; i += 1) {
+    const line = mergedRawLines[i];
     if (
       ignoreLine.test(line) ||
       diasLetivosLineRe.test(line) ||
@@ -102,8 +127,8 @@ function parseCalendarText(text, fallbackYear) {
 
     if (isDateLine(line)) {
       let merged = line;
-      while (i + 1 < rawLines.length) {
-        const next = rawLines[i + 1];
+      while (i + 1 < mergedRawLines.length) {
+        const next = mergedRawLines[i + 1];
         if (
           isMonthHeader(next) ||
           dateOnlyLineRe.test(next) ||
@@ -131,27 +156,32 @@ function parseCalendarText(text, fallbackYear) {
 
     if (!currentMonth) continue;
     if (footerDateLineRe.test(line)) continue;
+    if (aDefinirRe.test(line)) continue;
 
     let m;
 
+    // ate dd or até dd
     if ((m = line.match(atAnywhereRe))) {
       const [, d1, mo1, afterDesc] = m;
       const dayNum = parseInt(d1, 10);
       const monthNum = mo1 ? parseInt(mo1, 10) : currentMonth;
       let desc = (afterDesc || line.replace(m[0], "")).trim();
       desc = cleanDescription(desc);
-      events.push({
-        title: desc,
-        y: currentYear,
-        m: monthNum,
-        d: dayNum,
-        endY: currentYear,
-        endM: monthNum,
-        endD: dayNum,
-      });
+      if (desc) {
+        events.push({
+          title: desc,
+          y: currentYear,
+          m: monthNum,
+          d: dayNum,
+          endY: currentYear,
+          endM: monthNum,
+          endD: dayNum,
+        });
+      }
       continue;
     }
 
+    // dd/mm a dd/mm
     if ((m = line.match(crossMonthRangeRe))) {
       const [, d1, mo1, d2, mo2, desc] = m;
       events.push({
@@ -166,6 +196,7 @@ function parseCalendarText(text, fallbackYear) {
       continue;
     }
 
+    // dd a dd 
     if ((m = line.match(sameMonthRangeRe))) {
       const [, d1, d2, desc] = m;
       events.push({
@@ -180,10 +211,28 @@ function parseCalendarText(text, fallbackYear) {
       continue;
     }
 
+    // dd/mm 
+    if ((m = line.match(singleDayWithMonthRe))) {
+      const [, d1, mo1, desc] = m;
+      const dayNum = parseInt(d1, 10);
+      const monthNum = parseInt(mo1, 10);
+      events.push({
+        title: cleanDescription(desc),
+        y: currentYear,
+        m: monthNum,
+        d: dayNum,
+        endY: currentYear,
+        endM: monthNum,
+        endD: dayNum,
+      });
+      continue;
+    }
+
+    // compost date
     if ((m = line.match(dayListRe))) {
       const [, dayList, desc] = m;
       const parts = dayList
-        .split(/,|e/i)
+        .split(/[,/]|\s+e\s+|\s+and\s+/i)
         .map((s) => s.trim())
         .filter(Boolean);
       const cleanedDesc = cleanDescription(desc);
@@ -207,6 +256,7 @@ function parseCalendarText(text, fallbackYear) {
       continue;
     }
 
+    // only one day
     if ((m = line.match(singleDayRe))) {
       const [, d1, desc] = m;
       const dayNum = parseInt(d1, 10);
@@ -248,7 +298,8 @@ module.exports = async (req, res) => {
 
     const pdfResponse = await fetch(fetchUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
         Accept: "application/pdf,*/*",
         ...(SCRAPERAPI_KEY ? {} : { Referer: "http://www.prograd.uefs.br/" }),
       },
@@ -276,10 +327,51 @@ module.exports = async (req, res) => {
 
     const events = parseCalendarText(data.text);
 
+    const pad = (n) => String(n).padStart(2, "0");
+    const toIso = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+
+    const normalized = events.map((ev) => {
+      const sy = ev.y || new Date().getFullYear();
+      const sm = ev.m || 1;
+      const sd = ev.d || 1;
+      const ey = ev.endY || sy;
+      const em = ev.endM || sm;
+      const ed = ev.endD || sd;
+
+      const endDateObj = new Date(ey, em - 1, ed + 1);
+      const nextY = endDateObj.getFullYear();
+      const nextM = endDateObj.getMonth() + 1;
+      const nextD = endDateObj.getDate();
+
+      const start = toIso(sy, sm, sd);
+      const end = toIso(ey, em, ed);
+      const endExclusive = toIso(nextY, nextM, nextD);
+
+      return {
+        title: ev.title || "Evento",
+        y: sy,
+        m: sm,
+        d: sd,
+        endY: ey,
+        endM: em,
+        endD: ed,
+        year: sy,
+        month: sm,
+        day: sd,
+        endYear: ey,
+        endMonth: em,
+        endDay: ed,
+        start,
+        end,
+        endExclusive,
+        raw: ev,
+      };
+    });
+
     res.status(200).json({
       title: title || "Calendário",
-      count: events.length,
-      events,
+      count: normalized.length,
+      events: normalized,
     });
   } catch (err) {
     res.status(500).json({
